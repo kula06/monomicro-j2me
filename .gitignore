@@ -1,0 +1,23 @@
+build/
+dist/
+*.class
+*.jar
+.DS_Store
+
+# IntelliJ IDEA / PhpStorm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# NetBeans
+nbproject/private/
+build.xml~
+
+# VS Code
+.vscode/

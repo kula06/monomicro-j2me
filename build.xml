@@ -1,0 +1,116 @@
+<project name="monomicro-j2me" default="dev-jar" basedir=".">
+    <property environment="env"/>
+    <property name="app.name" value="monomicro-j2me"/>
+    <property name="src.dir" value="src"/>
+    <property name="res.dir" value="res"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="dev.classes.dir" value="${build.dir}/dev-classes"/>
+    <property name="preverified.dir" value="${build.dir}/preverified"/>
+    <property name="dist.dir" value="dist"/>
+    <property name="jar.file" value="${dist.dir}/${app.name}.jar"/>
+    <property name="jad.file" value="${dist.dir}/${app.name}.jad"/>
+    <property name="microemulator.jar" value="microemulator.jar"/>
+    <property name="dev.javac.source" value="1.3"/>
+    <property name="dev.javac.target" value="1.4"/>
+
+    <condition property="dev.javac.executable" value="${env.JAVA8_HOME}/bin/javac">
+        <available file="${env.JAVA8_HOME}/bin/javac"/>
+    </condition>
+    <condition property="dev.javac.executable" value="/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home/bin/javac">
+        <and>
+            <not>
+                <isset property="dev.javac.executable"/>
+            </not>
+            <available file="/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home/bin/javac"/>
+        </and>
+    </condition>
+
+    <!-- Real device builds require a Java ME Wireless Toolkit or Nokia SDK. -->
+    <property name="wtk.home" value="/path/to/wtk"/>
+    <property name="midpapi.jar" value="${wtk.home}/lib/midpapi20.jar"/>
+    <property name="cldcapi.jar" value="${wtk.home}/lib/cldcapi11.jar"/>
+    <property name="j2me.classpath" value="${cldcapi.jar}${path.separator}${midpapi.jar}"/>
+    <property name="preverify" value="${wtk.home}/bin/preverify"/>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <!-- Real Java ME build: compile against CLDC/MIDP, preverify, then package. -->
+    <target name="compile">
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${src.dir}"
+               destdir="${classes.dir}"
+               source="1.3"
+               target="1.1"
+               debug="false"
+               bootclasspath="${j2me.classpath}"/>
+    </target>
+
+    <target name="preverify" depends="compile">
+        <mkdir dir="${preverified.dir}"/>
+        <exec executable="${preverify}">
+            <arg value="-classpath"/>
+            <arg value="${j2me.classpath}"/>
+            <arg value="-d"/>
+            <arg value="${preverified.dir}"/>
+            <arg value="${classes.dir}"/>
+        </exec>
+    </target>
+
+    <target name="jar" depends="preverify">
+        <mkdir dir="${dist.dir}"/>
+        <jar destfile="${jar.file}" manifest="${res.dir}/META-INF/MANIFEST.MF">
+            <fileset dir="${preverified.dir}"/>
+        </jar>
+        <copy file="${app.name}.jad" tofile="${jad.file}"/>
+        <length file="${jar.file}" property="jar.size"/>
+        <replace file="${jad.file}" token="MIDlet-Jar-Size: 0" value="MIDlet-Jar-Size: ${jar.size}"/>
+    </target>
+
+    <target name="check-dev-build">
+        <available file="${microemulator.jar}" property="microemulator.present"/>
+        <fail unless="microemulator.present" message="microemulator.jar was not found. Put it in the project root or run with -Dmicroemulator.jar=/path/to/microemulator.jar."/>
+        <fail unless="dev.javac.executable" message="Java 8 javac was not found. Set JAVA8_HOME or pass -Ddev.javac.executable=/path/to/jdk8/bin/javac."/>
+    </target>
+
+    <!-- MicroEmulator dev build: no WTK required, but Java 8 is used to emit old bytecode. -->
+    <target name="dev-compile" depends="check-dev-build">
+        <mkdir dir="${dev.classes.dir}"/>
+        <javac srcdir="${src.dir}"
+               destdir="${dev.classes.dir}"
+               source="${dev.javac.source}"
+               target="${dev.javac.target}"
+               debug="true"
+               includeantruntime="false"
+               classpath="${microemulator.jar}"
+               fork="true"
+               executable="${dev.javac.executable}"/>
+    </target>
+
+    <target name="dev-jar" depends="dev-compile">
+        <mkdir dir="${dist.dir}"/>
+        <jar destfile="${jar.file}" manifest="${res.dir}/META-INF/MANIFEST.MF">
+            <fileset dir="${dev.classes.dir}"/>
+        </jar>
+        <copy file="${app.name}.jad" tofile="${jad.file}"/>
+        <length file="${jar.file}" property="jar.size"/>
+        <replace file="${jad.file}" token="MIDlet-Jar-Size: 0" value="MIDlet-Jar-Size: ${jar.size}"/>
+    </target>
+
+    <target name="run-microemu-jar" depends="dev-jar">
+        <java jar="${microemulator.jar}" fork="true">
+            <arg value="file://${basedir}/${jar.file}"/>
+        </java>
+    </target>
+
+    <target name="run-microemu-jad" depends="dev-jar">
+        <java jar="${microemulator.jar}" fork="true">
+            <arg value="${jad.file}"/>
+        </java>
+    </target>
+
+    <target name="run-microemu" depends="run-microemu-jar"/>
+</project>

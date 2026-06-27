@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+MIDlet-Name: monomicro-j2me
+MIDlet-Version: 1.0.0
+MIDlet-Vendor: Monomicro
+MIDlet-1: Rates, , com.monomicro.j2me.RatesMidlet
+MicroEdition-Profile: MIDP-2.0
+MicroEdition-Configuration: CLDC-1.1
+Rates-URL: http://monomicro.pluxa.cc/rates.txt
+
