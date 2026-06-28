@@ -13,6 +13,8 @@
     <property name="microemulator.jar" value="microemulator.jar"/>
     <property name="dev.javac.source" value="1.3"/>
     <property name="dev.javac.target" value="1.4"/>
+    <property name="real.javac.source" value="1.3"/>
+    <property name="real.javac.target" value="1.1"/>
 
     <condition property="dev.javac.executable" value="${env.JAVA8_HOME}/bin/javac">
         <available file="${env.JAVA8_HOME}/bin/javac"/>
@@ -23,6 +25,20 @@
                 <isset property="dev.javac.executable"/>
             </not>
             <available file="/Library/Java/JavaVirtualMachines/temurin-8.jdk/Contents/Home/bin/javac"/>
+        </and>
+    </condition>
+    <condition property="real.javac.executable" value="${dev.javac.executable}">
+        <isset property="dev.javac.executable"/>
+    </condition>
+    <condition property="wtk.home" value="${env.WTK_HOME}">
+        <available file="${env.WTK_HOME}"/>
+    </condition>
+    <condition property="wtk.home" value="${env.J2ME_HOME}">
+        <and>
+            <not>
+                <isset property="wtk.home"/>
+            </not>
+            <available file="${env.J2ME_HOME}"/>
         </and>
     </condition>
 
@@ -38,18 +54,32 @@
         <delete dir="${dist.dir}"/>
     </target>
 
-    <!-- Real Java ME build: compile against CLDC/MIDP, preverify, then package. -->
-    <target name="compile">
+    <target name="check-real-build">
+        <available file="${cldcapi.jar}" property="cldcapi.present"/>
+        <available file="${midpapi.jar}" property="midpapi.present"/>
+        <available file="${preverify}" property="preverify.present"/>
+        <fail unless="real.javac.executable" message="Java 8 javac was not found. Set JAVA8_HOME or pass -Dreal.javac.executable=/path/to/jdk8/bin/javac."/>
+        <fail unless="cldcapi.present" message="CLDC 1.1 API JAR was not found: ${cldcapi.jar}. Set WTK_HOME, J2ME_HOME, or -Dwtk.home=/path/to/wtk."/>
+        <fail unless="midpapi.present" message="MIDP 2.0 API JAR was not found: ${midpapi.jar}. Set WTK_HOME, J2ME_HOME, or -Dwtk.home=/path/to/wtk."/>
+        <fail unless="preverify.present" message="preverify was not found: ${preverify}. Set WTK_HOME, J2ME_HOME, or -Dpreverify=/path/to/preverify."/>
+    </target>
+
+    <!-- Real Java ME build: compile against CLDC/MIDP APIs only. -->
+    <target name="real-compile" depends="check-real-build">
         <mkdir dir="${classes.dir}"/>
         <javac srcdir="${src.dir}"
                destdir="${classes.dir}"
-               source="1.3"
-               target="1.1"
+               source="${real.javac.source}"
+               target="${real.javac.target}"
                debug="false"
-               bootclasspath="${j2me.classpath}"/>
+               includeantruntime="false"
+               bootclasspath="${j2me.classpath}"
+               fork="true"
+               executable="${real.javac.executable}"/>
     </target>
 
-    <target name="preverify" depends="compile">
+    <!-- Real Java ME build: preverify classes for CLDC devices. -->
+    <target name="real-preverify" depends="real-compile">
         <mkdir dir="${preverified.dir}"/>
         <exec executable="${preverify}">
             <arg value="-classpath"/>
@@ -60,7 +90,8 @@
         </exec>
     </target>
 
-    <target name="jar" depends="preverify">
+    <!-- Real Java ME build: package only preverified classes for Nokia phones. -->
+    <target name="real-jar" depends="real-preverify">
         <mkdir dir="${dist.dir}"/>
         <jar destfile="${jar.file}" manifest="${res.dir}/META-INF/MANIFEST.MF">
             <fileset dir="${preverified.dir}"/>
@@ -69,6 +100,10 @@
         <length file="${jar.file}" property="jar.size"/>
         <replace file="${jad.file}" token="MIDlet-Jar-Size: 0" value="MIDlet-Jar-Size: ${jar.size}"/>
     </target>
+
+    <target name="compile" depends="real-compile"/>
+    <target name="preverify" depends="real-preverify"/>
+    <target name="jar" depends="real-jar"/>
 
     <target name="check-dev-build">
         <available file="${microemulator.jar}" property="microemulator.present"/>
